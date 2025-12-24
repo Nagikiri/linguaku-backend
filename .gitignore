@@ -2,10 +2,6 @@
 # MONOREPO GITIGNORE - LINGUAKU
 # ============================================
 
-# Documentation files (don't push)
-*.md
-!README.md
-
 # Environment Variables
 .env
 .env.local
