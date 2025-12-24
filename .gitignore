@@ -1,0 +1,81 @@
+# ============================================
+# MONOREPO GITIGNORE - LINGUAKU
+# ============================================
+
+# Documentation files (don't push)
+*.md
+!README.md
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# Backend Specific
+Backendnya/uploads/audio/*.wav
+Backendnya/uploads/audio/*.mp3
+Backendnya/models-whisper/
+Backendnya/dist/
+Backendnya/build/
+
+# Frontend - Expo
+Frontendnya/.expo/
+Frontendnya/.expo-shared/
+Frontendnya/dist/
+Frontendnya/web-build/
+
+# Frontend - Android Build
+Frontendnya/android/app/build/
+Frontendnya/android/build/
+Frontendnya/android/.gradle/
+Frontendnya/android/local.properties
+*.apk
+*.aab
+
+# Frontend - iOS Build  
+Frontendnya/ios/build/
+Frontendnya/ios/Pods/
+*.ipa
+
+# Logs
+*.log
+logs/
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+*.pyc
+*.pyo
+
+# Uploads
+uploads/
+*.wav
+*.mp3
+*.m4a
+
+# Models
+*.bin
+models/*.bin
+
+# Test files
+test-*
+*.test.js

@@ -1,0 +1,77 @@
+{
+  "expo": {
+    "name": "LinguaKu",
+    "slug": "LinguaKu",
+    "version": "1.0.0",
+    "scheme": "linguaku",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "orientation": "portrait",
+    "icon": "./src/assets/icon.png",
+    "userInterfaceStyle": "light",
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
+    },
+    "splash": {
+      "image": "./src/assets/spalsh.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "src/assets/**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.linguaku.app",
+      "associatedDomains": [
+        "applinks:linguaku.com"
+      ]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.linguaku.app",
+      "softwareKeyboardLayoutMode": "pan",
+      "jsEngine": "hermes",
+      "kotlinVersion": "2.0.21",
+      "permissions": [
+        "RECORD_AUDIO",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "linguaku",
+              "host": "*"
+            },
+            {
+              "scheme": "https",
+              "host": "linguaku.com"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1a38d46e-a613-4542-91a5-955406111bb4"
+      }
+    },
+    "plugins": [
+      "expo-speech-recognition"
+    ]
+  }
+}

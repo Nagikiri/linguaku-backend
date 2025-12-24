@@ -1,0 +1,17 @@
+# ============================================
+# LinguaKu AI Microservice - Python Dependencies
+# For Whisper AI transcription service
+# ============================================
+
+# Web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# File upload handling
+python-multipart==0.0.6
+
+# Whisper AI (optimized version)
+faster-whisper==0.10.0
+
+# Additional dependencies for audio processing
+requests==2.31.0

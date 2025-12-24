@@ -1,0 +1,4 @@
+# Build Info
+Last updated: 2025-12-24
+Backend ready: Speech recognition via recognizedText parameter
+No Whisper microservice needed

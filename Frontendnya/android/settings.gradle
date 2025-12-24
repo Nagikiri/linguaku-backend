@@ -1,0 +1,43 @@
+pluginManagement {
+    def version = providers.exec {
+        commandLine("node", "-e", "console.log(require('expo/package.json').version);")
+    }.standardOutput.asText.get().trim()
+    def (major, minor, patch) = version.tokenize('.').collect { it.toInteger() }
+
+    includeBuild(new File(["node", "--print", "require.resolve('expo/package.json')"].execute().text.trim()).getParentFile().toString())
+    includeBuild("../../node_modules/@react-native/gradle-plugin")
+    
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id("com.android.application") version "8.7.3" apply false
+    id("com.android.library") version "8.7.3" apply false
+    id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        maven {
+            url(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute().text.trim()).getParentFile().toString() + "/android")
+        }
+        maven {
+            url(new File(["node", "--print", "require.resolve('jsc-android/package.json')"].execute().text.trim()).getParentFile().toString() + "/dist")
+        }
+        google()
+        mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+    }
+}
+
+rootProject.name = 'LinguaKu'
+
+apply from: new File(["node", "--print", "require.resolve('expo/package.json')"].execute().text.trim()).getParentFile().toString() + "/scripts/autolinking.gradle"
+useExpoModules()
+
+include ':app'
