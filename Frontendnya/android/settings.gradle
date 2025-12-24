@@ -5,7 +5,7 @@ pluginManagement {
     def (major, minor, patch) = version.tokenize('.').collect { it.toInteger() }
 
     includeBuild(new File(["node", "--print", "require.resolve('expo/package.json')"].execute().text.trim()).getParentFile().toString())
-    includeBuild("../../node_modules/@react-native/gradle-plugin")
+    includeBuild("../node_modules/@react-native/gradle-plugin")
     
     repositories {
         google()

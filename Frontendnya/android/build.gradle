@@ -26,6 +26,9 @@ buildscript {
     }
 }
 
+// Apply Expo root project plugin FIRST before allprojects
+apply plugin: "com.facebook.react.rootproject"
+
 allprojects {
     repositories {
         maven {
@@ -37,14 +40,13 @@ allprojects {
         maven { url 'https://www.jitpack.io' }
     }
     
-    // Force Kotlin version across all modules
+    // Force Kotlin version across all modules to prevent conflicts
     configurations.all {
         resolutionStrategy {
             force "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21"
             force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
+            force "org.jetbrains.kotlin:kotlin-reflect:2.0.21"
         }
     }
 }
-
-apply plugin: "com.facebook.react.rootproject"
