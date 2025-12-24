@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ['nodejs_20']
+
+[phases.install]
+cmds = ['cd Backendnya && npm install --production']
+
+[start]
+cmd = 'cd Backendnya && npm start'
