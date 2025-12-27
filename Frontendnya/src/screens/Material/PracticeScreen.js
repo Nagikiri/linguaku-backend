@@ -46,6 +46,11 @@ export const PracticeScreen = ({ route, navigation }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [usingSpeechRecognition, setUsingSpeechRecognition] = useState(true); // Use speech recognition by default
+  
+  // Audio playback states (CRITICAL: these were missing, causing ReferenceError crash)
+  const [sound, setSound] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioUri, setAudioUri] = useState(null);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -53,24 +58,41 @@ export const PracticeScreen = ({ route, navigation }) => {
   const resultAnim = useRef(new Animated.Value(0)).current;
   const [wordAnimations, setWordAnimations] = useState([]);
 
-  // Speech recognition event handler
+  // Speech recognition event handlers with safe error handling
   useSpeechRecognitionEvent("result", (event) => {
-    const transcript = event.results[0]?.transcript;
-    if (transcript) {
-      setRecognizedText(transcript);
-      console.log('Recognized text:', transcript);
+    try {
+      const transcript = event.results[0]?.transcript;
+      if (transcript) {
+        setRecognizedText(transcript);
+        console.log('Recognized text:', transcript);
+      }
+    } catch (error) {
+      console.error('Error handling speech recognition result:', error);
     }
   });
 
   useSpeechRecognitionEvent("end", () => {
-    setIsRecording(false);
-    console.log('Speech recognition ended');
+    try {
+      setIsRecording(false);
+      console.log('Speech recognition ended');
+    } catch (error) {
+      console.error('Error handling speech recognition end:', error);
+    }
   });
 
   useSpeechRecognitionEvent("error", (event) => {
-    console.error('Speech recognition error:', event.error);
-    setIsRecording(false);
-    Alert.alert('Recognition Error', 'Failed to recognize speech. Please try again.');
+    try {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      Alert.alert(
+        'Recognition Error', 
+        'Failed to recognize speech. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error handling speech recognition error event:', error);
+      setIsRecording(false);
+    }
   });
 
   useEffect(() => {
@@ -125,18 +147,19 @@ export const PracticeScreen = ({ route, navigation }) => {
     }).start();
   };
 
-  // Record Functions - Updated to use Expo Speech Recognition
+  // Record Functions - Updated to use Expo Speech Recognition with safe error handling
   const startRecording = async () => {
     try {
       setIsRecording(true);
       setResult(null);
       setShowResult(false);
       setRecognizedText('');
+      setAudioUri(null); // Reset audioUri when starting new recording
 
       // Request permissions and start speech recognition
       const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!granted) {
-        Alert.alert('Permission required', 'Please allow microphone access');
+        Alert.alert('Permission required', 'Please allow microphone access to record audio.');
         setIsRecording(false);
         return;
       }
@@ -157,59 +180,97 @@ export const PracticeScreen = ({ route, navigation }) => {
     } catch (err) {
       console.error('Failed to start speech recognition', err);
       setIsRecording(false);
-      Alert.alert('Error', 'Failed to start speech recognition. Make sure you have internet connection.');
+      Alert.alert(
+        'Error', 
+        'Failed to start speech recognition. Make sure you have internet connection and microphone permission.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
   const stopRecording = async () => {
     try {
       setIsRecording(false);
+      
+      // Check if speech recognition module is available
+      if (!ExpoSpeechRecognitionModule) {
+        console.error('Speech recognition module not available');
+        return;
+      }
+      
       await ExpoSpeechRecognitionModule.stop();
       console.log('Speech recognition stopped');
     } catch (err) {
       console.error('Failed to stop speech recognition', err);
+      // Don't show alert on stop error, just log it
+      setIsRecording(false);
     }
   };
 
-  // Play Recording
+  // Play Recording - with safe audio handling
   const playRecording = async () => {
-    if (!audioUri) return;
+    // Check if audioUri exists
+    if (!audioUri) {
+      console.warn('No audio URI available');
+      return;
+    }
 
     try {
+      // If currently playing, stop first
       if (isPlaying && sound) {
-        await sound.stopAsync();
-        await sound.unloadAsync();
+        try {
+          await sound.stopAsync();
+          await sound.unloadAsync();
+        } catch (stopError) {
+          console.error('Error stopping sound:', stopError);
+        }
         setSound(null);
         setIsPlaying(false);
         return;
       }
 
+      // Load and play new sound
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: audioUri },
         { shouldPlay: true }
       );
 
+      // Check if sound was created successfully
+      if (!newSound) {
+        throw new Error('Failed to create sound object');
+      }
+
       setSound(newSound);
       setIsPlaying(true);
 
+      // Set playback status update callback
       newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) {
-          setIsPlaying(false);
-          newSound.unloadAsync();
-          setSound(null);
+        try {
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            newSound.unloadAsync().catch(err => console.log('Unload error:', err));
+            setSound(null);
+          }
+        } catch (callbackError) {
+          console.error('Error in playback status callback:', callbackError);
         }
       });
     } catch (err) {
       console.error('Failed to play recording', err);
-      Alert.alert('Error', 'Failed to play recording');
+      setSound(null);
+      setIsPlaying(false);
+      Alert.alert('Error', 'Failed to play recording. Please try again.');
     }
   };
 
-  // Cleanup sound on unmount
+  // Cleanup sound on unmount - with safe error handling
   useEffect(() => {
     return () => {
       if (sound) {
-        sound.unloadAsync();
+        sound.unloadAsync().catch(err => {
+          console.log('Sound cleanup error:', err);
+          // Don't crash on cleanup errors
+        });
       }
     };
   }, [sound]);
