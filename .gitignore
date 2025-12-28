@@ -75,3 +75,14 @@ models/*.bin
 # Test files
 test-*
 *.test.js
+
+# Sensitive Documentation (exclude from git)
+**/DEPLOYMENT_GUIDE.md
+**/RAILWAY_DEPLOYMENT.md
+**/RAILWAY_DEPLOYMENT_CHECKLIST.md
+**/GOOGLE_LOGIN_GUIDE.md
+**/*_SUMMARY.md
+**/*_CHECKLIST.md
+**/*SECRET*.md
+**/*PASSWORD*.md
+**/*KEY*.md

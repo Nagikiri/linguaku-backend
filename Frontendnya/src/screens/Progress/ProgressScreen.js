@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { getToken } from '../../utils/storage';
+import { formatScore, displayScore } from '../../utils/scoreFormatter';
 import { API_URL, API_ENDPOINTS, fetchWithTimeout } from '../../config/api';
 import { formatTimeAgo } from '../../utils/timeAgo';
 
@@ -285,7 +286,7 @@ export const ProgressScreen = ({ navigation }) => {
           </Text>
         </View>
         <View style={[styles.activityScoreBadge, { backgroundColor: scoreColor }]}>
-          <Text style={styles.activityScore}>{item.score}%</Text>
+          <Text style={styles.activityScore}>{displayScore(item.score)}</Text>
         </View>
       </View>
     );

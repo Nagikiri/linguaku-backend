@@ -22,13 +22,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { getToken } from '../../utils/storage';
+import { formatScore, displayScore } from '../../utils/scoreFormatter';
 
 import { API_URL } from '../../config/api';
 
 // Removed hardcoded API_URL - now using centralized config
-const { width, height } = Dimensions.get('window');
-
-export const PracticeScreen = ({ route, navigation }) => {
+const { width, height } = Dimensions.get('window');export const PracticeScreen = ({ route, navigation }) => {
   const material = route.params?.material || {
     _id: '69123b60cd286c75dfb01122',
     title: 'Basic Greetings',
@@ -147,7 +146,7 @@ export const PracticeScreen = ({ route, navigation }) => {
     }).start();
   };
 
-  // Record Functions - Updated to use Expo Speech Recognition with safe error handling
+  // Record Functions - Updated to use BOTH Audio Recording AND Speech Recognition
   const startRecording = async () => {
     try {
       setIsRecording(true);
@@ -156,13 +155,47 @@ export const PracticeScreen = ({ route, navigation }) => {
       setRecognizedText('');
       setAudioUri(null); // Reset audioUri when starting new recording
 
-      // Request permissions and start speech recognition
+      // Request permissions
       const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!granted) {
         Alert.alert('Permission required', 'Please allow microphone access to record audio.');
         setIsRecording(false);
         return;
       }
+
+      // ALSO request audio recording permission
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      // Start AUDIO RECORDING (for playback later)
+      const recordingOptions = {
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
+          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_MPEG4AAC,
+          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      };
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
+      setRecording(newRecording);
+      console.log('Audio recording started');
 
       // Start speech recognition with English language
       await ExpoSpeechRecognitionModule.start({
@@ -178,11 +211,11 @@ export const PracticeScreen = ({ route, navigation }) => {
       console.log('Speech recognition started');
 
     } catch (err) {
-      console.error('Failed to start speech recognition', err);
+      console.error('Failed to start recording/recognition', err);
       setIsRecording(false);
       Alert.alert(
         'Error', 
-        'Failed to start speech recognition. Make sure you have internet connection and microphone permission.',
+        'Failed to start recording. Make sure you have internet connection and microphone permission.',
         [{ text: 'OK' }]
       );
     }
@@ -192,17 +225,26 @@ export const PracticeScreen = ({ route, navigation }) => {
     try {
       setIsRecording(false);
       
-      // Check if speech recognition module is available
-      if (!ExpoSpeechRecognitionModule) {
-        console.error('Speech recognition module not available');
-        return;
+      // Stop speech recognition
+      if (ExpoSpeechRecognitionModule) {
+        await ExpoSpeechRecognitionModule.stop();
+        console.log('Speech recognition stopped');
+      }
+
+      // Stop audio recording and get URI
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+        if (uri) {
+          setAudioUri(uri); // SAVE URI for playback
+          console.log('Audio saved to:', uri);
+        }
+        setRecording(null);
+        console.log('Audio recording stopped');
       }
       
-      await ExpoSpeechRecognitionModule.stop();
-      console.log('Speech recognition stopped');
     } catch (err) {
-      console.error('Failed to stop speech recognition', err);
-      // Don't show alert on stop error, just log it
+      console.error('Failed to stop recording', err);
       setIsRecording(false);
     }
   };
@@ -335,14 +377,21 @@ export const PracticeScreen = ({ route, navigation }) => {
       console.log('✅ Response data:', JSON.stringify(data, null, 2));
 
       if (data.success && data.data && data.data.result) {
-        setResult(data.data.result);
+        // Format score consistently
+        const resultData = {
+          ...data.data.result,
+          score: formatScore(data.data.result.score),
+          accuracy: formatScore(data.data.result.accuracy || data.data.result.score)
+        };
+        
+        setResult(resultData);
         setShowResult(true);
         animateResult();
-        prepareWordHighlight(data.data.result);
+        prepareWordHighlight(resultData);
         
         Alert.alert(
           'Analysis Complete!',
-          `Your score: ${data.data.result.score}%`,
+          `Your score: ${displayScore(resultData.score)}`,
           [{ text: 'OK' }]
         );
       } else {
@@ -663,7 +712,7 @@ export const PracticeScreen = ({ route, navigation }) => {
                 }
                 style={styles.scoreCircle}
               >
-                <Text style={styles.scoreText}>{result.score}</Text>
+                <Text style={styles.scoreText}>{displayScore(result.score)}</Text>
                 <Text style={styles.scoreLabel}>Score</Text>
               </LinearGradient>
             </View>
@@ -679,7 +728,7 @@ export const PracticeScreen = ({ route, navigation }) => {
 
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Accuracy:</Text>
-                <Text style={styles.detailValue}>{result.accuracy}%</Text>
+                <Text style={styles.detailValue}>{displayScore(result.accuracy)}</Text>
               </View>
 
               <View style={styles.detailRow}>
@@ -716,6 +765,7 @@ export const PracticeScreen = ({ route, navigation }) => {
                 setResult(null);
                 setShowResult(false);
                 setRecognizedText('');
+                setAudioUri(null); // Reset audio URI
                 resultAnim.setValue(0);
               }}
             >

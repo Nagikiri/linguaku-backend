@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getToken } from '../../utils/storage';
+import { formatScore, displayScore, getScoreColor as getScoreColorUtil } from '../../utils/scoreFormatter';
 
 import { API_URL } from '../../config/api';
 
@@ -199,7 +200,7 @@ export const HistoryScreen = () => {
             colors={getScoreColor(item.score)}
             style={styles.scoreBadge}
           >
-            <Text style={styles.scoreNumber}>{item.score}</Text>
+            <Text style={styles.scoreNumber}>{Math.round(formatScore(item.score))}</Text>
             <Text style={styles.scorePercent}>%</Text>
           </LinearGradient>
           <Text style={[styles.scoreLabel, { color: getScoreColor(item.score)[0] }]}>
