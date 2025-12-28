@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "LinguaKu",
-    "slug": "LinguaKu",
+    "slug": "linguaku-v2",
+    "owner": "testingitk",
     "version": "1.0.0",
     "scheme": "linguaku",
     "platforms": [
@@ -25,23 +26,28 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.linguaku.app",
+      "bundleIdentifier": "com.linguaku.app.v2",
       "associatedDomains": [
         "applinks:linguaku.com"
-      ]
+      ],
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.linguaku.app",
+      "package": "com.linguaku.app.v2",
       "softwareKeyboardLayoutMode": "pan",
       "jsEngine": "hermes",
       "permissions": [
         "RECORD_AUDIO",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ],
       "intentFilters": [
         {
@@ -64,13 +70,13 @@
         }
       ]
     },
-    "extra": {
-      "eas": {
-        "projectId": "1a38d46e-a613-4542-91a5-955406111bb4"
-      }
-    },
     "plugins": [
       "expo-speech-recognition"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1accbf5f-a39f-4c09-a710-2e250d47ea45"
+      }
+    }
   }
 }
