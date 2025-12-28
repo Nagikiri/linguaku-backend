@@ -73,7 +73,23 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
   useSpeechRecognitionEvent("end", () => {
     try {
       setIsRecording(false);
-      console.log('Speech recognition ended');
+      console.log('Speech recognition ended - auto-stop triggered');
+      
+      // Auto-stop audio recording when speech recognition ends
+      if (recording) {
+        recording.stopAndUnloadAsync()
+          .then(() => {
+            const uri = recording.getURI();
+            if (uri) {
+              setAudioUri(uri);
+              console.log('Audio saved for playback:', uri);
+            }
+            setRecording(null);
+          })
+          .catch(err => {
+            console.log('Could not stop audio recording (OK, STT worked):', err);
+          });
+      }
     } catch (error) {
       console.error('Error handling speech recognition end:', error);
     }
@@ -81,13 +97,17 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
 
   useSpeechRecognitionEvent("error", (event) => {
     try {
-      console.error('Speech recognition error:', event.error);
+      console.log('Speech recognition error (will retry automatically):', event.error);
       setIsRecording(false);
-      Alert.alert(
-        'Recognition Error', 
-        'Failed to recognize speech. Please try again.',
-        [{ text: 'OK' }]
-      );
+      
+      // Stop audio recording silently without Alert (errors are normal)
+      if (recording) {
+        recording.stopAndUnloadAsync()
+          .then(() => setRecording(null))
+          .catch(err => console.log('Audio cleanup error:', err));
+      }
+      
+      // Don't show Alert - just log it. User can retry by pressing Record Again
     } catch (error) {
       console.error('Error handling speech recognition error event:', error);
       setIsRecording(false);
@@ -146,51 +166,30 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
     }).start();
   };
 
-  // LIVE Speech-to-Text (PRIMARY - MUST WORK)
-  const startLiveSpeechToText = async () => {
+  // Start recording - STABLE version with proper auto-stop support
+  const startRecording = async () => {
     try {
-      console.log('🎤 Starting LIVE Speech-to-Text...');
-      
-      // Start speech recognition with English language
-      await ExpoSpeechRecognitionModule.start({
-        lang: 'en-US',
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: false,
-        requiresOnDeviceRecognition: false,
-        addsPunctuation: false,
-        contextualStrings: [materialText], // Hint for better recognition
-      });
-      
-      console.log('✅ LIVE Speech-to-Text started (streaming from microphone)');
-    } catch (err) {
-      console.error('❌ Failed to start LIVE Speech-to-Text:', err);
-      throw err; // Re-throw untuk ditangani di parent
-    }
-  };
+      setIsRecording(true);
+      setResult(null);
+      setShowResult(false);
+      setRecognizedText('');
+      setAudioUri(null);
 
-  const stopLiveSpeechToText = async () => {
-    try {
-      if (ExpoSpeechRecognitionModule) {
-        await ExpoSpeechRecognitionModule.stop();
-        console.log('✅ LIVE Speech-to-Text stopped');
+      // Request permissions
+      const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permission required', 'Please allow microphone access.');
+        setIsRecording(false);
+        return;
       }
-    } catch (err) {
-      console.error('❌ Failed to stop Speech-to-Text:', err);
-      // Don't throw, just log
-    }
-  };
 
-  // Audio Recording (SECONDARY - FOR PLAYBACK ONLY)
-  const startAudioRecording = async () => {
-    try {
-      console.log('🎙️ Starting audio recording (for playback only)...');
-      
+      await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
+      // Start audio recording first (for playback later)
       const recordingOptions = {
         android: {
           extension: '.m4a',
@@ -213,120 +212,58 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
         },
       };
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
-      setRecording(newRecording);
-      console.log('✅ Audio recording started (will be saved for playback)');
-    } catch (err) {
-      console.error('⚠️ Failed to start audio recording (but STT can still work):', err);
-      // Don't throw - audio recording is optional
-    }
-  };
-
-  const stopAudioRecording = async () => {
-    try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        if (uri) {
-          setAudioUri(uri);
-          console.log('✅ Audio saved for playback:', uri);
-        }
-        setRecording(null);
-      }
-    } catch (err) {
-      console.error('⚠️ Failed to stop audio recording (but it\'s OK):', err);
-      // Don't throw - audio recording is optional
-    }
-  };
-
-  // Coordinated Start (BOTH run in parallel, independently)
-  const startRecording = async () => {
-    try {
-      setIsRecording(true);
-      setResult(null);
-      setShowResult(false);
-      setRecognizedText('');
-      setAudioUri(null);
-
-      // Request permissions ONCE
-      const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!granted) {
-        Alert.alert('Permission required', 'Please allow microphone access.');
-        setIsRecording(false);
-        return;
+      try {
+        const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
+        setRecording(newRecording);
+        console.log('Audio recording started');
+      } catch (audioErr) {
+        console.log('Audio recording failed (OK, STT will still work):', audioErr);
       }
 
-      await Audio.requestPermissionsAsync();
-
-      // Start BOTH in parallel using Promise.allSettled (not Promise.all)
-      // This ensures one failure doesn't crash the other
-      const results = await Promise.allSettled([
-        startLiveSpeechToText(),      // PRIMARY - Critical
-        startAudioRecording()         // SECONDARY - Optional
-      ]);
-
-      // Check if PRIMARY (STT) succeeded
-      if (results[0].status === 'rejected') {
-        console.error('❌ CRITICAL: Live STT failed:', results[0].reason);
-        setIsRecording(false);
-        Alert.alert(
-          'Speech Recognition Error',
-          'Could not start speech recognition. Please try again.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Log SECONDARY status (but don't fail if it didn't work)
-      if (results[1].status === 'rejected') {
-        console.log('⚠️ Audio recording failed, but STT is working (OK)');
-      }
-
-      console.log('✅ Recording started (STT: LIVE streaming from mic)');
+      // Start speech recognition
+      await ExpoSpeechRecognitionModule.start({
+        lang: 'en-US',
+        interimResults: true,
+        maxAlternatives: 1,
+        continuous: false,
+        requiresOnDeviceRecognition: false,
+        addsPunctuation: false,
+        contextualStrings: [materialText],
+      });
+      
+      console.log('Speech recognition started - will auto-stop when user stops speaking');
 
     } catch (err) {
-      console.error('❌ Failed to start recording:', err);
+      console.error('Failed to start recording:', err);
       setIsRecording(false);
       Alert.alert('Error', 'Failed to start recording. Please try again.');
     }
   };
 
-  // Coordinated Stop (BOTH stop independently)
+  // Manual stop recording (when user presses stop button)
   const stopRecording = async () => {
     try {
       setIsRecording(false);
       
-      // Stop BOTH using Promise.allSettled
-      const results = await Promise.allSettled([
-        stopLiveSpeechToText(),       // PRIMARY
-        stopAudioRecording()          // SECONDARY
-      ]);
-
-      // Check PRIMARY result
-      if (results[0].status === 'rejected') {
-        console.error('⚠️ Failed to stop STT:', results[0].reason);
+      // Stop speech recognition
+      if (ExpoSpeechRecognitionModule) {
+        await ExpoSpeechRecognitionModule.stop();
+        console.log('Speech recognition stopped manually');
       }
 
-      // Check SECONDARY result (but don't fail overall)
-      if (results[1].status === 'rejected') {
-        console.log('⚠️ Failed to stop audio recording (but it\'s OK)');
-      }
-
-      // Log final status
-      if (recognizedText && recognizedText.length > 0) {
-        console.log('✅ Recording stopped. Transcription:', recognizedText);
-      } else {
-        console.log('⚠️ Recording stopped but no transcription received');
-      }
-
-      if (audioUri) {
-        console.log('✅ Audio playback available');
-      } else {
-        console.log('ℹ️ Audio playback not available (but evaluation can still proceed)');
+      // Stop audio recording
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+        if (uri) {
+          setAudioUri(uri);
+          console.log('Audio saved for playback:', uri);
+        }
+        setRecording(null);
       }
       
     } catch (err) {
-      console.error('❌ Failed to stop recording:', err);
+      console.error('Failed to stop recording:', err);
       setIsRecording(false);
     }
   };
@@ -665,27 +602,6 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
           {renderMaterialText()}
         </LinearGradient>
 
-        {/* Audio Playback Button (if recorded) */}
-        {audioUri && !showResult && (
-          <TouchableOpacity 
-            style={[styles.playbackButton, isPlaying && styles.playbackButtonActive]}
-            onPress={playRecording}
-            disabled={analyzing}
-          >
-            <LinearGradient
-              colors={isPlaying ? ['#8B5CF6', '#7C3AED'] : ['#3B82F6', '#2563EB']}
-              style={styles.playbackButtonGradient}
-            >
-              <Text style={styles.playbackIcon}>
-                {isPlaying ? '⏸' : '▶'}
-              </Text>
-              <Text style={styles.playbackText}>
-                {isPlaying ? 'Stop Playback' : 'Play Recording'}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
         {/* Recording Section */}
         <View style={styles.recordingSection}>
           {/* Waveform Animation */}
@@ -769,7 +685,8 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
         )}
 
         {/* Audio Playback Button (SECONDARY FEATURE - Optional) */}
-        {audioUri && !showResult && (
+        {/* IMPORTANT: Only show AFTER analysis is complete */}
+        {audioUri && showResult && (
           <View style={styles.playbackContainer}>
             <Text style={styles.playbackLabel}>🎧 Listen to Your Recording:</Text>
             <TouchableOpacity
