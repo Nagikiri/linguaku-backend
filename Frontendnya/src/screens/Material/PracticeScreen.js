@@ -11,13 +11,9 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { Audio } from 'expo-av';
 import {
   useSpeechRecognitionEvent,
-  addSpeechRecognitionListener,
   ExpoSpeechRecognitionModule,
-  AudioEncodingAndroid,
-  AudioSourceAndroid,
 } from "expo-speech-recognition";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,18 +34,11 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
   const materialText = material.text || (material.items && material.items[0]?.text) || 'Hello';
 
   // States
-  const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recognizedText, setRecognizedText] = useState('');
   const [result, setResult] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [usingSpeechRecognition, setUsingSpeechRecognition] = useState(true); // Use speech recognition by default
-  
-  // Audio playback states (CRITICAL: these were missing, causing ReferenceError crash)
-  const [sound, setSound] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioUri, setAudioUri] = useState(null);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -73,23 +62,7 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
   useSpeechRecognitionEvent("end", () => {
     try {
       setIsRecording(false);
-      console.log('Speech recognition ended - auto-stop triggered');
-      
-      // Auto-stop audio recording when speech recognition ends
-      if (recording) {
-        recording.stopAndUnloadAsync()
-          .then(() => {
-            const uri = recording.getURI();
-            if (uri) {
-              setAudioUri(uri);
-              console.log('Audio saved for playback:', uri);
-            }
-            setRecording(null);
-          })
-          .catch(err => {
-            console.log('Could not stop audio recording (OK, STT worked):', err);
-          });
-      }
+      console.log('Speech recognition ended - ready for analysis');
     } catch (error) {
       console.error('Error handling speech recognition end:', error);
     }
@@ -97,17 +70,9 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
 
   useSpeechRecognitionEvent("error", (event) => {
     try {
-      console.log('Speech recognition error (will retry automatically):', event.error);
+      console.log('Speech recognition error:', event.error);
       setIsRecording(false);
-      
-      // Stop audio recording silently without Alert (errors are normal)
-      if (recording) {
-        recording.stopAndUnloadAsync()
-          .then(() => setRecording(null))
-          .catch(err => console.log('Audio cleanup error:', err));
-      }
-      
-      // Don't show Alert - just log it. User can retry by pressing Record Again
+      // User can retry by pressing Record Again button
     } catch (error) {
       console.error('Error handling speech recognition error event:', error);
       setIsRecording(false);
@@ -166,14 +131,13 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
     }).start();
   };
 
-  // Start recording - STABLE version with proper auto-stop support
+  // Start recording - Speech-to-Text only (NO audio file recording)
   const startRecording = async () => {
     try {
       setIsRecording(true);
       setResult(null);
       setShowResult(false);
       setRecognizedText('');
-      setAudioUri(null);
 
       // Request permissions
       const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
@@ -181,43 +145,6 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
         Alert.alert('Permission required', 'Please allow microphone access.');
         setIsRecording(false);
         return;
-      }
-
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      // Start audio recording first (for playback later)
-      const recordingOptions = {
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_MPEG_4,
-          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.RECORDING_OPTION_IOS_OUTPUT_FORMAT_MPEG4AAC,
-          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-      };
-
-      try {
-        const { recording: newRecording } = await Audio.Recording.createAsync(recordingOptions);
-        setRecording(newRecording);
-        console.log('Audio recording started');
-      } catch (audioErr) {
-        console.log('Audio recording failed (OK, STT will still work):', audioErr);
       }
 
       // Start speech recognition
@@ -240,7 +167,7 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
     }
   };
 
-  // Manual stop recording (when user presses stop button)
+  // Manual stop recording
   const stopRecording = async () => {
     try {
       setIsRecording(false);
@@ -250,97 +177,12 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
         await ExpoSpeechRecognitionModule.stop();
         console.log('Speech recognition stopped manually');
       }
-
-      // Stop audio recording
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        if (uri) {
-          setAudioUri(uri);
-          console.log('Audio saved for playback:', uri);
-        }
-        setRecording(null);
-      }
       
     } catch (err) {
       console.error('Failed to stop recording:', err);
       setIsRecording(false);
     }
   };
-
-  // Audio Playback (SECONDARY FEATURE - FOR REVIEW ONLY)
-  // IMPORTANT: Audio file is NEVER used for transcription!
-  // Transcription comes from LIVE Speech-to-Text only.
-  const playRecording = async () => {
-    // Check if audioUri exists
-    if (!audioUri) {
-      console.warn('⚠️ No audio URI available for playback');
-      Alert.alert('No Audio', 'Recording not available for playback.');
-      return;
-    }
-
-    try {
-      // If currently playing, stop first
-      if (isPlaying && sound) {
-        try {
-          await sound.stopAsync();
-          await sound.unloadAsync();
-        } catch (stopError) {
-          console.error('Error stopping sound:', stopError);
-        }
-        setSound(null);
-        setIsPlaying(false);
-        return;
-      }
-
-      console.log('▶️ Playing recorded audio (for review only)...');
-
-      // Load and play new sound
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
-        { shouldPlay: true }
-      );
-
-      // Check if sound was created successfully
-      if (!newSound) {
-        throw new Error('Failed to create sound object');
-      }
-
-      setSound(newSound);
-      setIsPlaying(true);
-
-      // Set playback status update callback
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        try {
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            newSound.unloadAsync().catch(err => console.log('Unload error:', err));
-            setSound(null);
-            console.log('⏹️ Playback finished');
-          }
-        } catch (callbackError) {
-          console.error('Error in playback status callback:', callbackError);
-        }
-      });
-    } catch (err) {
-      console.error('❌ Playback error:', err);
-      setSound(null);
-      setIsPlaying(false);
-      Alert.alert('Playback Error', 'Could not play the recording. But evaluation can still proceed.');
-    }
-  };
-
-  // Cleanup sound on unmount - with safe error handling
-  useEffect(() => {
-    return () => {
-      if (sound) {
-        sound.unloadAsync().catch(err => {
-          console.log('Sound cleanup error:', err);
-          // Don't crash on cleanup errors
-        });
-      }
-    };
-  }, [sound]);
 
   // Analyze with Speech Recognition (No audio upload needed)
   const handleAnalyze = async (retryCount = 0) => {
@@ -684,30 +526,6 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
           </TouchableOpacity>
         )}
 
-        {/* Audio Playback Button (SECONDARY FEATURE - Optional) */}
-        {/* IMPORTANT: Only show AFTER analysis is complete */}
-        {audioUri && showResult && (
-          <View style={styles.playbackContainer}>
-            <Text style={styles.playbackLabel}>🎧 Listen to Your Recording:</Text>
-            <TouchableOpacity
-              style={[styles.playbackButton, isPlaying && styles.playbackButtonDisabled]}
-              onPress={playRecording}
-              disabled={isPlaying}
-            >
-              <LinearGradient
-                colors={['#6366F1', '#4F46E5']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.playbackButtonGradient}
-              >
-                <Text style={styles.playbackButtonText}>
-                  {isPlaying ? '⏸️ Playing...' : '▶️ Play Recording'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Result Section */}
         {showResult && result && (
           <Animated.View
@@ -793,7 +611,6 @@ const { width, height } = Dimensions.get('window');export const PracticeScreen =
                 setResult(null);
                 setShowResult(false);
                 setRecognizedText('');
-                setAudioUri(null); // Reset audio URI
                 resultAnim.setValue(0);
               }}
             >
@@ -885,35 +702,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 40,
   },
-  playbackButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 24,
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  playbackButtonActive: {
-    shadowColor: '#8B5CF6',
-  },
-  playbackButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  playbackIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    marginRight: 8,
-  },
-  playbackText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
   recordingSection: {
     alignItems: 'center',
     marginVertical: 32,
@@ -1004,27 +792,6 @@ const styles = StyleSheet.create({
   analyzeButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  playbackContainer: {
-    marginTop: 16,
-  },
-  playbackButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  playbackButtonGradient: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  playbackLabel: {
-    fontSize: 16,
-    fontWeight: '600',
     color: '#FFFFFF',
   },
   resultContainer: {
