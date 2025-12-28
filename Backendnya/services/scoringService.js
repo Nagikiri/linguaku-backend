@@ -1,7 +1,14 @@
 // ============================================
 // FILE: services/scoringService.js
-// Tujuan: Calculate pronunciation score & feedback
+// Tujuan: Calculate pronunciation score & feedback (IMPROVED)
 // ============================================
+
+const { 
+  normalizeText, 
+  wordSimilarity, 
+  evaluatePronunciation: evaluatePronunciationUtil,
+  formatScore 
+} = require('../utils/textNormalizer');
 
 // Get accent mode from environment variables
 const ACCENT_MODE = process.env.ACCENT_MODE || 'indonesian';
@@ -36,71 +43,57 @@ const normalizeForAccent = (word) => {
 };
 
 /**
- * Calculate pronunciation score
- * Compare transcription with original text
+ * Calculate pronunciation score (IMPROVED WITH FUZZY MATCHING)
+ * Compare transcription with original text using word-level similarity
  * @param {String} originalText - Text asli dari material
  * @param {String} transcribedText - Text hasil speech-to-text
  * @returns {Object} - Score and feedback
  */
 const calculateScore = (originalText, transcribedText) => {
-  // Normalize text
-  const original = originalText.toLowerCase().trim().replace(/\s+/g, ' ');
-  const transcribed = transcribedText.toLowerCase().trim().replace(/\s+/g, ' ');
-
-  // Split into words
-  const originalWords = original.split(' ');
-  const transcribedWords = transcribed.split(' ');
-
-  // Calculate word-level accuracy with accent-aware comparison
-  let correctWords = 0;
-  let mistakes = [];
-
-  originalWords.forEach((word, index) => {
-    const normalizedExpected = normalizeForAccent(word);
-    const normalizedActual = normalizeForAccent(transcribedWords[index] || '');
-
-    if (normalizedActual === normalizedExpected) {
-      correctWords++;
-    } else {
-      mistakes.push({
-        expected: word,
-        actual: transcribedWords[index] || '(missing)',
-        position: index
-      });
-    }
-  });
-
-  // Calculate score (0-100)
-  const accuracy = (correctWords / originalWords.length) * 100;
-  const score = Math.round(accuracy);
-
+  // Use improved evaluation from textNormalizer utility
+  const evaluation = evaluatePronunciationUtil(originalText, transcribedText);
+  
+  // Extract data
+  const { score, correctWords, incorrectWords, totalWords } = evaluation;
+  
+  // Format score consistently (1 decimal place)
+  const formattedScore = formatScore(score);
+  
   // Generate feedback based on score
   let feedback = '';
-  if (score >= 90) {
+  if (formattedScore >= 90) {
     feedback = 'Excellent! Your pronunciation is very clear.';
-  } else if (score >= 75) {
+  } else if (formattedScore >= 75) {
     feedback = 'Good job! Keep practicing to improve.';
-  } else if (score >= 60) {
+  } else if (formattedScore >= 60) {
     feedback = 'Not bad, but there is room for improvement.';
-  } else if (score >= 40) {
+  } else if (formattedScore >= 40) {
     feedback = 'Keep practicing! Focus on the words that need improvement.';
   } else {
     feedback = 'Don\'t give up! Practice more and you will improve.';
   }
-
-  // Highlight mistakes
-  const mistakeWords = mistakes.map(m => m.expected);
-
+  
+  // Convert incorrectWords to old format for compatibility
+  const mistakes = incorrectWords.map((item, index) => ({
+    expected: item.expected,
+    actual: item.actual,
+    position: index,
+    similarity: item.similarity
+  }));
+  
+  const mistakeWords = incorrectWords.map(item => item.expected);
+  
   return {
-    score,
-    accuracy,
-    correctWords,
-    totalWords: originalWords.length,
+    score: formattedScore,
+    accuracy: formattedScore,
+    correctWords: correctWords.length,
+    totalWords: totalWords,
     mistakes,
     mistakeWords,
     feedback,
-    transcription: transcribed,
-    accentMode: ACCENT_MODE // Include mode info in response
+    transcription: normalizeText(transcribedText),
+    accentMode: ACCENT_MODE,
+    evaluationMethod: 'fuzzy-matching' // Indicator for new method
   };
 };
 

@@ -49,40 +49,65 @@ async function generateDetailedFeedback(materialText, transcription, mistakes) {
 - Be constructive but thorough in identifying pronunciation errors.
 `;
 
-    // Construct detailed prompt
-    const prompt = `
-You are an expert English pronunciation teacher. Analyze this pronunciation practice for a learner.
+    // Construct improved prompt for better evaluation
+    const prompt = `You are a pronunciation evaluation assistant for a language learning app.
 
-${accentInstructions}
+Your task:
+Compare the user's transcribed speech with the target sentence.
+Evaluate pronunciation accuracy based on word-by-word similarity.
 
-**Expected Text:** "${materialText}"
-**User's Pronunciation:** "${transcription}"
-**Identified Mistakes:** ${mistakes.length > 0 ? mistakes.join(', ') : 'None - Perfect pronunciation!'}
+CRITICAL RULES:
+1. Focus on word correctness and word order
+2. IGNORE punctuation completely
+3. IGNORE case differences (uppercase/lowercase)
+4. IGNORE filler words (uh, um, eh, hmm, er, ah)
+5. DO NOT convert spoken numbers to digits or time formats
+   Example: "six" must stay "six" (NOT "6", "06", "06:00")
+6. Be TOLERANT to small pronunciation variations
+7. If 90%+ of words are correct, consider it excellent (score 90-100)
+8. For long sentences (3-4+ words), do NOT penalize harshly for one mistake
+9. Calculate score per word, then average
+10. Round final score to ONE decimal place only
+${ACCENT_MODE === 'indonesian' ? `
+11. INDONESIAN ACCENT-AWARE MODE:
+   - Accept "th" as "t" (three → tree)
+   - Accept "v" and "f" similar sounds
+   - Accept "z" and "s" similar sounds
+   - Accept rolling/strong "r"
+   - DO NOT penalize Indonesian accent features
+   - Focus ONLY on intelligibility and word correctness
+` : ''}
 
-Provide a detailed, encouraging feedback that includes:
+Target sentence: "${materialText}"
+User's transcription: "${transcription}"
+Identified mistakes: ${mistakes.length > 0 ? mistakes.join(', ') : 'None'}
 
-1. **Overall Assessment** (1-2 sentences)
-   - Acknowledge what they did well
-   - Overall pronunciation quality
+Provide evaluation feedback in this format:
 
-2. **Specific Feedback** (if there are mistakes)
-   - For each mistake, explain:
-     * What the correct pronunciation should sound like
-     * A simple tip or technique to improve
-     * Example: "For 'are', emphasize the 'r' sound - try 'arrr' like a pirate!"
-   - ${ACCENT_MODE === 'indonesian' ? 'Focus only on mistakes that affect clarity, not accent features.' : 'Be thorough about all pronunciation deviations.'}
+**Overall Assessment:**
+[1-2 sentences acknowledging what they did well and overall quality]
 
-3. **Encouragement** (1 sentence)
-   - Motivate them to keep practicing
-   - Be positive and supportive
-   - ${ACCENT_MODE === 'indonesian' ? 'Emphasize that accent is natural and acceptable.' : 'Encourage progress toward native-like pronunciation.'}
+**Specific Feedback:**
+${mistakes.length > 0 ? `
+- For each mistake word, explain:
+  * What the correct pronunciation should sound like
+  * A simple tip to improve
+  * Example: "For 'are', emphasize the 'r' sound - try 'arrr' like a pirate!"
+` : 'Perfect pronunciation! All words were clear and accurate.'}
 
-**IMPORTANT:**
+**Encouragement:**
+[1 sentence to motivate continued practice, be positive and supportive]
+
+**IMPORTANT CONSTRAINTS:**
 - Keep it friendly, conversational, and helpful
 - Use simple language (avoid technical jargon)
-- Maximum 150 words
-- If pronunciation is perfect, be enthusiastic!
-- Current evaluation mode: ${ACCENT_MODE === 'indonesian' ? 'INDONESIAN ACCENT-AWARE' : 'STRICT NATIVE ENGLISH'}
+- Maximum 150 words total
+- If pronunciation is perfect or near-perfect, be enthusiastic!
+- Current mode: ${ACCENT_MODE === 'indonesian' ? 'INDONESIAN ACCENT-AWARE (tolerant)' : 'STRICT NATIVE ENGLISH'}
+- DO NOT claim phoneme analysis (you cannot do acoustic analysis)
+- DO NOT claim accent detection (you cannot hear audio)
+- DO NOT claim intonation analysis (text-based only)
+- BE HONEST: Your evaluation is text-based similarity, not acoustic analysis
 
 Generate the feedback now:
     `.trim();
