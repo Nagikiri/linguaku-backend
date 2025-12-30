@@ -75,14 +75,28 @@ models/*.bin
 # Test files
 test-*
 *.test.js
+test-gemini-*
+test-google-*
+test-api*
+temp_*.txt
 
 # Sensitive Documentation (exclude from git)
 **/DEPLOYMENT_GUIDE.md
 **/RAILWAY_DEPLOYMENT.md
 **/RAILWAY_DEPLOYMENT_CHECKLIST.md
 **/GOOGLE_LOGIN_GUIDE.md
+**/SOFTWARE_TESTING_DOCUMENT.md
 **/*_SUMMARY.md
 **/*_CHECKLIST.md
 **/*SECRET*.md
 **/*PASSWORD*.md
 **/*KEY*.md
+**/*.md.backup
+**/CHANGELOG.md
+**/DEPLOYMENT_CHECKLIST.md
+**/MONOREPO_SETUP_GUIDE.md
+**/QUICK_START.md
+**/REFACTOR_SUMMARY.md
+**/BUGFIX_SUMMARY.md
+**/AUDIO_FORCE_CLOSE_FIX.md
+**/PROJECT_STATUS.md

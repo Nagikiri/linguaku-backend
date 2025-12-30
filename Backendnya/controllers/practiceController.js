@@ -8,7 +8,7 @@ const Practice = require('../models/Practice');
 const Material = require('../models/Material');
 const { generateDetailedFeedback: generateGeminiFeedback } = require('../services/geminiService');
 const { calculateScore } = require('../services/scoringService');
-const { generateDynamicFeedback, generateDetailedFeedback } = require('../utils/feedbackGenerator');
+// ✅ NO MORE HARDCODE FALLBACK - Always use Gemini AI
 
 // ==========================================
 // @desc    Upload audio and analyze pronunciation
@@ -76,12 +76,14 @@ const analyzePronunciation = async (req, res) => {
     // 5. CALCULATE SCORE
     const result = calculateScore(materialText, transcription);
 
-    // 6. GENERATE DYNAMIC FEEDBACK (tidak disimpan ke DB, di-generate on-the-fly)
+    // 6. GENERATE AI FEEDBACK USING GEMINI (ALWAYS - NO HARDCODE FALLBACK)
     let detailedFeedback;
-    let feedbackSource = 'Dynamic';
+    let feedbackSource = 'Gemini AI';
     
-    // Try Gemini AI first (optional)
+    // MANDATORY: Always use Gemini AI for feedback
     try {
+      console.log('🤖 Generating feedback with Gemini AI...');
+      
       const geminiResult = await generateGeminiFeedback(
         materialText,
         transcription,
@@ -91,19 +93,21 @@ const analyzePronunciation = async (req, res) => {
       if (geminiResult.success) {
         detailedFeedback = geminiResult.feedback;
         feedbackSource = 'Gemini AI';
+        console.log('✅ Gemini AI feedback generated successfully');
       } else {
-        detailedFeedback = generateDynamicFeedback(
-          result.score,
-          result.mistakeWords || [],
-          result.totalWords
-        );
+        // If Gemini fails, throw error to trigger retry
+        throw new Error(geminiResult.error || 'Gemini AI failed to generate feedback');
       }
     } catch (geminiError) {
-      detailedFeedback = generateDynamicFeedback(
-        result.score,
-        result.mistakeWords || [],
-        result.totalWords
-      );
+      console.error('❌ Gemini AI Error:', geminiError.message);
+      
+      // Return error response - DO NOT USE HARDCODE FALLBACK
+      return res.status(500).json({
+        success: false,
+        message: 'Gagal menganalisis pengucapan. Mohon coba lagi.',
+        error: 'AI feedback generation failed',
+        details: geminiError.message
+      });
     }
 
     // 7. VALIDATE USER AUTHENTICATION
@@ -202,14 +206,8 @@ const getPracticeHistory = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(50); // Increased limit since data is lighter
 
-    // Generate dynamic feedback for each practice
+    // Return practices with their stored feedback (from Gemini AI)
     const practicesWithFeedback = practices.map(practice => {
-      const feedback = generateDynamicFeedback(
-        practice.score,
-        practice.mistakes || [],
-        0 // totalWords not stored
-      );
-
       return {
         _id: practice._id,
         materialId: practice.materialId,
@@ -218,7 +216,7 @@ const getPracticeHistory = async (req, res) => {
         mistakes: practice.mistakes,
         duration: practice.duration,
         createdAt: practice.createdAt,
-        feedback: feedback // Generated on-the-fly
+        feedback: practice.feedbackSummary || 'No feedback available' // Use stored feedback from DB
       };
     });
 
